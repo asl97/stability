@@ -1,16 +1,17 @@
--- stability 0.1.1 by paramat
+-- stability 0.2.0 by paramat
 -- For latest stable Minetest and back to 0.4.8
 -- Depends default
 -- License: code WTFPL
 
 -- Parameters
 
-local YMIN = 6000
+local YMIN = 6000 -- Upper and lower realm limits
 local YMAX = 8000
-local TCEN = 7000
-local WATY = 7000 -- approximate water y, is rounded down to near base of chunk
-local GRAD = 128
-local STOT = 0.04
+local TCEN = 7000 -- Terrain centre, average surface level
+local WATY = 7000 -- Approximate water y, is rounded down to near base of chunk
+local TSCA = 128 -- Terrain scale, approximate average height of hills
+local STOT = 0.04 -- Stone threshold, depth of stone surface
+local STABLE = 2 -- Minimum number of stacked stone nodes in column required to support sand
 
 -- 3D noise for terrain
 
@@ -27,7 +28,7 @@ local np_terrain = {
 
 stability = {}
 
-waty = (80 * math.floor((WATY + 32) / 80)) - 32 + 12
+waty = (80 * math.floor((WATY + 32) / 80)) - 32 + 15
 
 -- On generated function
 
@@ -62,16 +63,16 @@ minetest.register_on_generated(function(minp, maxp, seed)
 	local nvals_terrain = minetest.get_perlin_map(np_terrain, chulens):get3dMap_flat(minpos)
 	
 	local ni = 1
-	local stable = {} -- stability table, a true/false entry for the top node in each vertical column of xy plane
+	local stable = {}
 	for z = z0, z1 do -- for each xy plane progressing northwards
 		for x = x0, x1 do -- set initial values of stability table by scanning top x row of chunk below
-			local si = x - x0 + 1 -- stability table index starts from 1 not 0
+			local si = x - x0 + 1
 			local nodename = minetest.get_node({x=x,y=y0-1,z=z}).name
 			if nodename == "air"
 			or nodename == "default:water_source" then
-				stable[si] = false
+				stable[si] = 0
 			else -- solid nodes
-				stable[si] = true -- assume "ignore" in ungenerated chunks is solid
+				stable[si] = STABLE -- assume "ignore" in ungenerated chunks is solid
 			end
 		end
 		
@@ -79,19 +80,19 @@ minetest.register_on_generated(function(minp, maxp, seed)
 			local vi = area:index(x0, y, z) -- get voxel index for first node in x row
 			for x = x0, x1 do -- for each node do
 				local si = x - x0 + 1
-				local grad = (TCEN - y) / GRAD
+				local grad = (TCEN - y) / TSCA
 				local density = nvals_terrain[ni] + grad
 				if density >= STOT then
 					data[vi] = c_stone
-					stable[si] = true -- only stone can reset an unstable column to stable
-				elseif density >= 0 and density < STOT and stable[si] then -- only add if node is stable
+					stable[si] = stable[si] + 1 -- only stone can reset an unstable column to stable
+				elseif density >= 0 and density < STOT and stable[si] >= STABLE then -- only add if node is stable
 					data[vi] = c_sand
 				elseif y <= waty then
 					data[vi] = c_water
-					stable[si] = false -- set to unstable
+					stable[si] = 0 -- set to unstable
 				else
 					data[vi] = c_air
-					stable[si] = false -- set to unstable
+					stable[si] = 0 -- set to unstable
 				end
 				ni = ni + 1 -- increment perlinmap noise index
 				vi = vi + 1 -- increment voxel index along x row
