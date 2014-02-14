@@ -63,16 +63,16 @@ minetest.register_on_generated(function(minp, maxp, seed)
 	local nvals_terrain = minetest.get_perlin_map(np_terrain, chulens):get3dMap_flat(minpos)
 	
 	local ni = 1
-	local stable = {}
+	local stable = {} -- 80 entry table, each entry is a count of consecutive stone nodes in that vertical column
 	for z = z0, z1 do -- for each xy plane progressing northwards
 		for x = x0, x1 do -- set initial values of stability table by scanning top x row of chunk below
-			local si = x - x0 + 1
+			local si = x - x0 + 1 -- stability table index
 			local nodename = minetest.get_node({x=x,y=y0-1,z=z}).name
 			if nodename == "air"
 			or nodename == "default:water_source" then
 				stable[si] = 0
-			else -- solid nodes
-				stable[si] = STABLE -- assume "ignore" in ungenerated chunks is solid
+			else -- solid nodes, but also "ignore" in ungenerated chunks, this assumption looks better than
+				stable[si] = STABLE -- assuming ignore is unstable, and creates some fun sand to collapse
 			end
 		end
 		
@@ -83,10 +83,10 @@ minetest.register_on_generated(function(minp, maxp, seed)
 				local grad = (TCEN - y) / TSCA
 				local density = nvals_terrain[ni] + grad
 				if density >= STOT then
-					data[vi] = c_stone
-					stable[si] = stable[si] + 1 -- only stone can reset an unstable column to stable
-				elseif density >= 0 and density < STOT and stable[si] >= STABLE then -- only add if node is stable
-					data[vi] = c_sand
+					data[vi] = c_stone -- only stone can reset an unstable column to stable
+					stable[si] = stable[si] + 1 -- increment count of consecutive stone nodes in column
+				elseif density >= 0 and density < STOT and stable[si] >= STABLE then
+					data[vi] = c_sand -- only add if enough supporting stone nodes below
 				elseif y <= waty then
 					data[vi] = c_water
 					stable[si] = 0 -- set to unstable
