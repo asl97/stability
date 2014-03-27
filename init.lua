@@ -1,14 +1,14 @@
--- stability 0.2.0 by paramat
+-- stability 0.2.1 by paramat
 -- For latest stable Minetest and back to 0.4.8
 -- Depends default
 -- License: code WTFPL
 
 -- Parameters
 
-local YMIN = 6000 -- Upper and lower realm limits
+local YMIN = 6000 -- Approximate realm base and atmosphere top
 local YMAX = 8000
-local TCEN = 7000 -- Terrain centre, average surface level
-local WATY = 7000 -- Approximate water y, is rounded down to near base of chunk
+local TCEN = 7016 -- Terrain centre, average solid surface level
+local WATY = 7016 -- Water surface y
 local TSCA = 128 -- Terrain scale, approximate average height of hills
 local STOT = 0.04 -- Stone threshold, depth of stone surface
 local STABLE = 2 -- Minimum number of stacked stone nodes in column required to support sand
@@ -28,7 +28,16 @@ local np_terrain = {
 
 stability = {}
 
-waty = (80 * math.floor((WATY + 32) / 80)) - 32 + 15
+-- Nodes
+
+minetest.register_node("stability:stone", {
+	description = "STB Stone",
+	tiles = {"default_stone.png"},
+	is_ground_content = false,
+	groups = {cracky=3},
+	drop = "default:stone",
+	sounds = default.node_sound_stone_defaults(),
+})
 
 -- On generated function
 
@@ -52,9 +61,10 @@ minetest.register_on_generated(function(minp, maxp, seed)
 	local data = vm:get_data()
 	
 	local c_air = minetest.get_content_id("air")
-	local c_stone = minetest.get_content_id("default:stone")
 	local c_sand = minetest.get_content_id("default:sand")
 	local c_water = minetest.get_content_id("default:water_source")
+	
+	local c_stbstone = minetest.get_content_id("stability:stone")
 	
 	local sidelen = x1 - x0 + 1
 	local chulens = {x=sidelen, y=sidelen, z=sidelen}
@@ -76,26 +86,26 @@ minetest.register_on_generated(function(minp, maxp, seed)
 			end
 		end
 		
-		for y = y0, y1 do -- for each x row progressing upwards
-			local vi = area:index(x0, y, z) -- get voxel index for first node in x row
-			for x = x0, x1 do -- for each node do
+		for y = y0, y1 do
+			local vi = area:index(x0, y, z)
+			for x = x0, x1 do
 				local si = x - x0 + 1
 				local grad = (TCEN - y) / TSCA
 				local density = nvals_terrain[ni] + grad
 				if density >= STOT then
-					data[vi] = c_stone -- only stone can reset an unstable column to stable
+					data[vi] = c_stbstone -- only stone can reset an unstable column to stable
 					stable[si] = stable[si] + 1 -- increment count of consecutive stone nodes in column
 				elseif density >= 0 and density < STOT and stable[si] >= STABLE then
 					data[vi] = c_sand -- only add if enough supporting stone nodes below
-				elseif y <= waty then
+				elseif y <= WATY then
 					data[vi] = c_water
 					stable[si] = 0 -- set to unstable
 				else
 					data[vi] = c_air
 					stable[si] = 0 -- set to unstable
 				end
-				ni = ni + 1 -- increment perlinmap noise index
-				vi = vi + 1 -- increment voxel index along x row
+				ni = ni + 1
+				vi = vi + 1
 			end
 		end
 	end
