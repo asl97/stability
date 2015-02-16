@@ -1,4 +1,4 @@
-stability 0.2.1 by paramat
-For latest stable Minetest back to 0.4.8
+stability 0.3.0 by paramat
+For Minetest 0.4.11 or later
 Depends default
-Licenses: code WTFPL
+Licenses: Code WTFPL
