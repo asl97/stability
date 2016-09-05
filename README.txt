@@ -1,4 +1,5 @@
-stability 0.3.0 by paramat
-For Minetest 0.4.11 or later
+stability 0.4.0 by paramat
+For Minetest 0.4.14 or later
 Depends default
-Licenses: Code WTFPL
+License: Source code: MIT
+See license.txt for license information
