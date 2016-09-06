@@ -1,11 +1,10 @@
--- TODO fix y = 48 when generating downwards
 -- Parameters
 
 local YWATER = 1 -- y of water level
 local YSURF = 4 -- y of surface centre and top of beach
 local TERSCA = 128 -- Terrain vertical scale in nodes
 local TSTONE = 0.04 -- Stone density threshold, depth of sand or biome nodes
-local DEBUG = true
+local DEBUG = false
 
 -- 3D noise
 
@@ -100,14 +99,13 @@ minetest.register_on_generated(function(minp, maxp, seed)
 	local z0 = minp.z
 	
 	local sidelen = x1 - x0 + 1
-	local overlen = sidelen + 2
 	local ystridevm = sidelen + 32 -- strides for voxelmanip
 	local zstridevm = ystridevm ^ 2
-	local ystridepm = overlen -- strides for perlinmaps, densitymap, stability map
+	local ystridepm = sidelen + 2 -- strides for perlinmaps, densitymap, stability map
 	local zstridepm = ystridepm ^ 2
 
-	local chulens3d = {x = overlen, y = overlen, z = overlen}
-	local chulens2d = {x = overlen, y = overlen, z = 1}
+	local chulens3d = {x = sidelen + 2, y = sidelen + 2, z = sidelen + 2}
+	local chulens2d = {x = sidelen + 2, y = sidelen + 2, z = 1}
 	local minpos3d = {x = x0 - 1, y = y0 - 1, z = z0 - 1}
 	local minpos2d = {x = x0 - 1, y = z0 - 1}
 	
@@ -135,7 +133,7 @@ minetest.register_on_generated(function(minp, maxp, seed)
 
 				local grad = (YSURF - y) / TERSCA
 				local tstone = TSTONE
-				if y <= YSURF then -- make shore and seabed shallower
+				if y < YSURF then -- make shore and seabed shallower
 					grad = grad * 4
 					tstone = TSTONE * 4
 				end
@@ -148,22 +146,24 @@ minetest.register_on_generated(function(minp, maxp, seed)
 					else
 						data[vi] = c_stone
 					end
+				elseif y == y1 + 1 and x >= x0 and x <= x1 and z >= z0 and z <= z1 then
+					data[vi] = c_air
 				end
 
 				ni3d = ni3d + 1
 				ni2d = ni2d + 1
 				vi = vi + 1
 			end
-			ni2d = ni2d - overlen
+			ni2d = ni2d - ystridepm
 		end
-		ni2d = ni2d + overlen
+		ni2d = ni2d + ystridepm
 	end
 	
 	-- Place sub-surface biome nodes
 	local stable = {} -- stability map
 	for y = y0, y1 + 1 do
 		local tstone = TSTONE
-		if y <= YSURF then
+		if y < YSURF then
 			tstone = TSTONE * 4
 		end
 		for z = z0, z1 do
@@ -178,7 +178,7 @@ minetest.register_on_generated(function(minp, maxp, seed)
 
 				if density >= tstone then -- existing stone
 					stable[ni2d] = true
-				elseif density > 0 and (stable[ni2d] or y == y0) then -- biome layer
+				elseif density >= 0 and (stable[ni2d] or y == y0) then -- biome layer
 					local nodu  = data[(vi - ystridevm)]
 					local node  = data[(vi - ystridevm + 1)]
 					local nodw  = data[(vi - ystridevm - 1)]
@@ -238,51 +238,56 @@ minetest.register_on_generated(function(minp, maxp, seed)
 		end
 	end
 
-	-- Place surface biome nodes
-	for z = z0, z1 do
-		local ni2d = (z - z0 + 1) * ystridepm + 2
-		for x = x0, x1 do
-			local emptya = false -- node above empty
-			local n_biome = nvals_biome[ni2d]
-			local vi = area:index(x, y1 + 1, z)
-			for y = y1 + 1, y0, -1 do
-				local nodid = data[vi]
-				if emptya and nodid ~= c_air and nodid ~= c_ignore then -- surface found
-					if nodid == c_desand then
-						data[vi] = c_desand -- obviously redundant
-					elseif nodid == c_dirt then
-						if n_biome < -0.4 then
-							data[vi] = c_dirtsnow
-						else
-							data[vi] = c_grass
-						end
+	if y1 > YSURF then
+		-- Place surface biome nodes
+		for z = z0, z1 do
+			local ni2d = (z - z0 + 1) * ystridepm + 2
+			for x = x0, x1 do
+				local aircount = 0
+				local n_biome = nvals_biome[ni2d]
+				local vi = area:index(x, y1 + 2, z)
+				for y = y1 + 2, y0, -1 do
+					if y <= YSURF then
+						break
 					end
-					break -- next column
-				else -- air or ignore
-					emptya = true
+
+					local nodid = data[vi]
+					if nodid == c_air then
+						aircount = aircount + 1
+					elseif aircount >= 1 then -- surface found
+						if nodid == c_dirt then
+							if n_biome < -0.4 then
+								data[vi] = c_dirtsnow
+							else
+								data[vi] = c_grass
+							end
+						end
+						aircount = 0
+					end
+					vi = vi - ystridevm
 				end
-				vi = vi - ystridevm
+				ni2d = ni2d + 1
 			end
-			ni2d = ni2d + 1
 		end
 	end
 
-	-- Place water
-	for z = z0, z1 do
-		for y = y0, y1 do
-			local vi = area:index(x0, y, z)
-			for x = x0, x1 do
-				if data[vi] == c_air and y <= YWATER then
-					data[vi] = c_water
+	if y0 <= YWATER then
+		-- Place water
+		for z = z0, z1 do
+			for y = y0, y1 do
+				local vi = area:index(x0, y, z)
+				for x = x0, x1 do
+					if data[vi] == c_air and y <= YWATER then
+						data[vi] = c_water
+					end
+					vi = vi + 1
 				end
-
-				vi = vi + 1
 			end
 		end
 	end
 	
 	vm:set_data(data)
-	vm:calc_lighting()
+	vm:calc_lighting({x = x0, y = y0 - 1, z = z0}, {x = x1, y = y1 + 1, z = z1})
 	vm:write_to_map(data)
 	vm:update_liquids()
 
