@@ -85,6 +85,9 @@ local nobj_biome   = nil
 local nbuf_terrain
 local nbuf_biome
 
+-- Localise data buffer
+
+local dbuf
 
 -- On generated function
 
@@ -119,7 +122,7 @@ minetest.register_on_generated(function(minp, maxp, seed)
 
 	local vm, emin, emax = minetest.get_mapgen_object("voxelmanip")
 	local area = VoxelArea:new{MinEdge = emin, MaxEdge = emax}
-	local data = vm:get_data()
+	local data = vm:get_data(dbuf)
 
 	-- Place stone
 	local ni3d = 1
