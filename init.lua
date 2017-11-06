@@ -82,12 +82,12 @@ local nobj_biome   = nil
 
 -- Localise noise buffers
 
-local nbuf_terrain
-local nbuf_biome
+local nbuf_terrain = {}
+local nbuf_biome = {}
 
 -- Localise data buffer
 
-local dbuf
+local dbuf = {}
 
 -- On generated function
 
